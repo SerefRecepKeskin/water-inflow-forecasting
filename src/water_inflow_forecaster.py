@@ -1,5 +1,4 @@
-"""
-Water Inflow Forecasting Module for Hydroelectric Power Plants.
+"""Water Inflow Forecasting Module for Hydroelectric Power Plants.
 
 This module provides a production-ready forecasting system that combines
 Holt-Winters, XGBoost, and Random Forest models with uncertainty quantification
@@ -31,19 +30,19 @@ import sys
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 import numpy as np
 import pandas as pd
 import torch
-import torch.nn as nn
 from scipy.optimize import minimize
 from scipy.stats import shapiro
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.preprocessing import MinMaxScaler
-from xgboost import XGBRegressor
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
+from torch import nn
+from xgboost import XGBRegressor
 
 warnings.filterwarnings("ignore")
 
@@ -57,6 +56,7 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 # Data containers
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class ForecastResult:
@@ -77,14 +77,15 @@ class ForecastResult:
         Each value is a tuple of (lower_bound, upper_bound).
     metrics : Optional[Dict[str, float]]
         Evaluation metrics computed on validation data (populated after ``evaluate``).
+
     """
 
     predictions: np.ndarray
     lower_bound: np.ndarray
     upper_bound: np.ndarray
-    model_details: Dict[str, np.ndarray]
-    confidence_levels: Dict[str, Tuple[np.ndarray, np.ndarray]]
-    metrics: Optional[Dict[str, float]] = None
+    model_details: dict[str, np.ndarray]
+    confidence_levels: dict[str, tuple[np.ndarray, np.ndarray]]
+    metrics: dict[str, float] | None = None
 
     def summary(self) -> str:
         """Return a human-readable summary of the forecast."""
@@ -93,7 +94,8 @@ class ForecastResult:
             "=" * 50,
             f"  Horizon           : {len(self.predictions)} steps",
             f"  Mean prediction   : {np.mean(self.predictions):.4f}",
-            f"  Prediction range  : [{np.min(self.predictions):.4f}, {np.max(self.predictions):.4f}]",
+            f"  Prediction range  : [{np.min(self.predictions):.4f}, "
+            f"{np.max(self.predictions):.4f}]",
             f"  95% CI width avg  : {np.mean(self.upper_bound - self.lower_bound):.4f}",
             f"  Models used       : {list(self.model_details.keys())}",
         ]
@@ -108,6 +110,7 @@ class ForecastResult:
 # LSTM network
 # ---------------------------------------------------------------------------
 
+
 class _LSTMNet(nn.Module):
     """Single-layer LSTM for univariate time series forecasting."""
 
@@ -119,9 +122,7 @@ class _LSTMNet(nn.Module):
         output_size: int = 1,
     ):
         super().__init__()
-        self.lstm = nn.LSTM(
-            input_size, hidden_size, num_layers, batch_first=True
-        )
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
         self.fc = nn.Linear(hidden_size, output_size)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -132,6 +133,7 @@ class _LSTMNet(nn.Module):
 # ---------------------------------------------------------------------------
 # Main forecaster class
 # ---------------------------------------------------------------------------
+
 
 class WaterInflowForecaster:
     """Multi-step water inflow forecasting for hydroelectric plants.
@@ -157,6 +159,7 @@ class WaterInflowForecaster:
     >>> result = forecaster.predict(steps=5)
     >>> print(result.predictions)
     >>> print(result.lower_bound, result.upper_bound)
+
     """
 
     # Valid model identifiers
@@ -165,7 +168,7 @@ class WaterInflowForecaster:
     def __init__(
         self,
         forecast_horizon: int = 5,
-        models: Optional[List[str]] = None,
+        models: list[str] | None = None,
         confidence_level: float = 0.95,
     ):
         # Validate inputs
@@ -175,36 +178,34 @@ class WaterInflowForecaster:
             raise ValueError("confidence_level must be in (0, 1).")
 
         self.forecast_horizon: int = forecast_horizon
-        self.model_names: List[str] = models or ["hw", "xgboost", "rf", "lstm"]
+        self.model_names: list[str] = models or ["hw", "xgboost", "rf", "lstm"]
         self.confidence_level: float = confidence_level
 
         # Validate model names
         unknown = set(self.model_names) - self._VALID_MODELS
         if unknown:
-            raise ValueError(
-                f"Unknown model(s): {unknown}. Choose from {self._VALID_MODELS}."
-            )
+            raise ValueError(f"Unknown model(s): {unknown}. Choose from {self._VALID_MODELS}.")
 
         # Model storage
         self._hw_model: Any = None
-        self._xgboost_model: Optional[XGBRegressor] = None
-        self._rf_model: Optional[RandomForestRegressor] = None
-        self._lstm_model: Optional[nn.Module] = None
-        self._lstm_scaler: Optional[MinMaxScaler] = None
-        self._trend_coefs: Optional[np.ndarray] = None
-        self._xgb_feature_cols: Optional[List[str]] = None
-        self._xgb_best_params: Optional[Dict[str, Any]] = None
+        self._xgboost_model: XGBRegressor | None = None
+        self._rf_model: RandomForestRegressor | None = None
+        self._lstm_model: nn.Module | None = None
+        self._lstm_scaler: MinMaxScaler | None = None
+        self._trend_coefs: np.ndarray | None = None
+        self._xgb_feature_cols: list[str] | None = None
+        self._xgb_best_params: dict[str, Any] | None = None
 
         # Ensemble weights (optimized during fit)
-        self._weights: Dict[str, float] = {
+        self._weights: dict[str, float] = {
             name: 1.0 / len(self.model_names) for name in self.model_names
         }
 
         # Calibration data for conformal prediction
-        self._calibration_residuals: Optional[np.ndarray] = None
+        self._calibration_residuals: np.ndarray | None = None
 
         # Training data reference (needed for recursive prediction)
-        self._train_data: Optional[pd.Series] = None
+        self._train_data: pd.Series | None = None
         self._is_fitted: bool = False
 
     # ------------------------------------------------------------------
@@ -213,7 +214,7 @@ class WaterInflowForecaster:
 
     def fit(
         self,
-        data: Union[pd.Series, pd.DataFrame],
+        data: pd.Series | pd.DataFrame,
         validation_size: int = 5,
     ) -> "WaterInflowForecaster":
         """Train all models on historical data with walk-forward CV.
@@ -247,6 +248,7 @@ class WaterInflowForecaster:
         ------
         ValueError
             If the data is too short or no valid CV folds can be generated.
+
         """
         logger.info("Starting model training pipeline...")
 
@@ -255,56 +257,46 @@ class WaterInflowForecaster:
         self._train_data = series.copy()
 
         # Step 2: Generate December-anchored walk-forward CV folds
-        cv_folds = self._generate_december_folds(
-            series, test_months=validation_size
-        )
+        cv_folds = self._generate_december_folds(series, test_months=validation_size)
         logger.info("Generated %d walk-forward CV folds.", len(cv_folds))
 
         # Step 3: Train each model on each fold, collect predictions
-        all_val_actuals: List[np.ndarray] = []
-        all_val_preds: Dict[str, List[np.ndarray]] = {
-            name: [] for name in self.model_names
-        }
+        all_val_actuals: list[np.ndarray] = []
+        all_val_preds: dict[str, list[np.ndarray]] = {name: [] for name in self.model_names}
 
         for fold_idx, (train_fold, val_fold, label) in enumerate(cv_folds):
             logger.info(
                 "CV Fold %d/%d: %s (train=%d, val=%d)",
-                fold_idx + 1, len(cv_folds), label,
-                len(train_fold), len(val_fold),
+                fold_idx + 1,
+                len(cv_folds),
+                label,
+                len(train_fold),
+                len(val_fold),
             )
             fold_steps = len(val_fold)
 
             if "hw" in self.model_names:
                 self._fit_hw(train_fold)
-                all_val_preds["hw"].append(
-                    self._predict_hw(steps=fold_steps)
-                )
+                all_val_preds["hw"].append(self._predict_hw(steps=fold_steps))
 
             if "xgboost" in self.model_names:
                 self._fit_xgboost(train_fold)
-                all_val_preds["xgboost"].append(
-                    self._predict_xgboost(train_fold, steps=fold_steps)
-                )
+                all_val_preds["xgboost"].append(self._predict_xgboost(train_fold, steps=fold_steps))
 
             if "rf" in self.model_names:
                 self._fit_rf(train_fold)
-                all_val_preds["rf"].append(
-                    self._predict_rf(train_fold, steps=fold_steps)
-                )
+                all_val_preds["rf"].append(self._predict_rf(train_fold, steps=fold_steps))
 
             if "lstm" in self.model_names:
                 self._fit_lstm(train_fold)
-                all_val_preds["lstm"].append(
-                    self._predict_lstm(train_fold, steps=fold_steps)
-                )
+                all_val_preds["lstm"].append(self._predict_lstm(train_fold, steps=fold_steps))
 
             all_val_actuals.append(val_fold.values)
 
         # Step 4: Pool residuals across all folds for weight optimization
         combined_actual = np.concatenate(all_val_actuals)
-        combined_preds: Dict[str, np.ndarray] = {
-            name: np.concatenate(all_val_preds[name])
-            for name in self.model_names
+        combined_preds: dict[str, np.ndarray] = {
+            name: np.concatenate(all_val_preds[name]) for name in self.model_names
         }
 
         self._optimize_weights(combined_actual, combined_preds)
@@ -312,9 +304,7 @@ class WaterInflowForecaster:
 
         # Calibration residuals for conformal prediction
         ensemble_combined = self._ensemble_combine(combined_preds)
-        self._calibration_residuals = np.abs(
-            combined_actual - ensemble_combined
-        )
+        self._calibration_residuals = np.abs(combined_actual - ensemble_combined)
         logger.info(
             "Calibration residuals: %d points, mean=%.4f, max=%.4f",
             len(self._calibration_residuals),
@@ -337,7 +327,7 @@ class WaterInflowForecaster:
         logger.info("Training pipeline complete.")
         return self
 
-    def predict(self, steps: Optional[int] = None) -> ForecastResult:
+    def predict(self, steps: int | None = None) -> ForecastResult:
         """Generate multi-step forecasts with prediction intervals.
 
         Parameters
@@ -356,6 +346,7 @@ class WaterInflowForecaster:
         ------
         RuntimeError
             If the model has not been fitted.
+
         """
         self._check_is_fitted()
 
@@ -363,36 +354,28 @@ class WaterInflowForecaster:
         if steps < 1:
             raise ValueError("steps must be >= 1.")
 
-        model_predictions: Dict[str, np.ndarray] = {}
+        model_predictions: dict[str, np.ndarray] = {}
 
         if "hw" in self.model_names:
             model_predictions["hw"] = self._predict_hw(steps=steps)
 
         if "xgboost" in self.model_names:
-            model_predictions["xgboost"] = self._predict_xgboost(
-                self._train_data, steps=steps
-            )
+            model_predictions["xgboost"] = self._predict_xgboost(self._train_data, steps=steps)
 
         if "rf" in self.model_names:
-            model_predictions["rf"] = self._predict_rf(
-                self._train_data, steps=steps
-            )
+            model_predictions["rf"] = self._predict_rf(self._train_data, steps=steps)
 
         if "lstm" in self.model_names:
-            model_predictions["lstm"] = self._predict_lstm(
-                self._train_data, steps=steps
-            )
+            model_predictions["lstm"] = self._predict_lstm(self._train_data, steps=steps)
 
         # Weighted ensemble
         ensemble_pred = self._ensemble_combine(model_predictions)
 
         # Prediction intervals using conformal prediction with horizon scaling
-        lower, upper = self._conformal_interval(
-            ensemble_pred, steps, self.confidence_level
-        )
+        lower, upper = self._conformal_interval(ensemble_pred, steps, self.confidence_level)
 
         # Multiple confidence levels
-        confidence_levels: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
+        confidence_levels: dict[str, tuple[np.ndarray, np.ndarray]] = {}
         for level in [0.80, 0.90, 0.95]:
             cl, cu = self._conformal_interval(ensemble_pred, steps, level)
             confidence_levels[f"{int(level * 100)}%"] = (cl, cu)
@@ -407,10 +390,10 @@ class WaterInflowForecaster:
 
     def evaluate(
         self,
-        actual: Union[pd.Series, np.ndarray],
-        predicted: Optional[np.ndarray] = None,
-        steps: Optional[int] = None,
-    ) -> Dict[str, float]:
+        actual: pd.Series | np.ndarray,
+        predicted: np.ndarray | None = None,
+        steps: int | None = None,
+    ) -> dict[str, float]:
         """Compute evaluation metrics.
 
         If ``predicted`` is not supplied, the method generates a forecast
@@ -429,6 +412,7 @@ class WaterInflowForecaster:
         -------
         Dict[str, float]
             Dictionary with keys ``'rmse'``, ``'mae'``, ``'mape'``, ``'smape'``.
+
         """
         actual_arr = np.asarray(actual, dtype=float)
         if predicted is None:
@@ -448,7 +432,9 @@ class WaterInflowForecaster:
         # MAPE (avoid division by zero)
         nonzero_mask = a != 0
         if nonzero_mask.any():
-            mape = float(np.mean(np.abs((a[nonzero_mask] - p[nonzero_mask]) / a[nonzero_mask])) * 100)
+            mape = float(
+                np.mean(np.abs((a[nonzero_mask] - p[nonzero_mask]) / a[nonzero_mask])) * 100
+            )
         else:
             mape = float("inf")
 
@@ -457,9 +443,7 @@ class WaterInflowForecaster:
         nonzero_denom = denom != 0
         if nonzero_denom.any():
             smape = float(
-                np.mean(
-                    2 * np.abs(a[nonzero_denom] - p[nonzero_denom]) / denom[nonzero_denom]
-                )
+                np.mean(2 * np.abs(a[nonzero_denom] - p[nonzero_denom]) / denom[nonzero_denom])
                 * 100
             )
         else:
@@ -471,15 +455,18 @@ class WaterInflowForecaster:
         residual_diag = self.residual_diagnostics(a, p)
         metrics["residual_diagnostics"] = residual_diag
 
-        logger.info("Evaluation metrics: %s", {k: v for k, v in metrics.items() if k != "residual_diagnostics"})
+        logger.info(
+            "Evaluation metrics: %s",
+            {k: v for k, v in metrics.items() if k != "residual_diagnostics"},
+        )
         logger.info("Residual diagnostics: %s", residual_diag)
         return metrics
 
     def residual_diagnostics(
         self,
-        actual: Union[pd.Series, np.ndarray],
-        predicted: Union[pd.Series, np.ndarray],
-    ) -> Dict[str, float]:
+        actual: pd.Series | np.ndarray,
+        predicted: pd.Series | np.ndarray,
+    ) -> dict[str, float]:
         """Compute residual diagnostic statistics.
 
         Parameters
@@ -494,6 +481,7 @@ class WaterInflowForecaster:
         Dict[str, float]
             Dictionary containing Shapiro-Wilk statistic and p-value,
             residual mean, standard deviation, and lag-1 autocorrelation.
+
         """
         actual_arr = np.asarray(actual, dtype=float)
         predicted_arr = np.asarray(predicted, dtype=float)
@@ -523,7 +511,7 @@ class WaterInflowForecaster:
             "lag1_autocorrelation": lag1_corr,
         }
 
-    def save(self, path: Union[str, Path]) -> None:
+    def save(self, path: str | Path) -> None:
         """Persist the fitted forecaster to disk.
 
         All model weights, calibration residuals, and configuration
@@ -534,6 +522,7 @@ class WaterInflowForecaster:
         path : str or Path
             Destination file path.  Parent directories are created if
             they do not exist.
+
         """
         self._check_is_fitted()
 
@@ -564,7 +553,7 @@ class WaterInflowForecaster:
         logger.info("Model saved to %s", path)
 
     @classmethod
-    def load(cls, path: Union[str, Path]) -> "WaterInflowForecaster":
+    def load(cls, path: str | Path) -> "WaterInflowForecaster":
         """Load a previously saved forecaster from disk.
 
         Parameters
@@ -576,6 +565,7 @@ class WaterInflowForecaster:
         -------
         WaterInflowForecaster
             Fully restored, ready-to-predict forecaster instance.
+
         """
         path = Path(path)
         if not path.exists():
@@ -616,7 +606,7 @@ class WaterInflowForecaster:
         series: pd.Series,
         test_months: int = 5,
         min_train_years: int = 15,
-    ) -> List[Tuple[pd.Series, pd.Series, str]]:
+    ) -> list[tuple[pd.Series, pd.Series, str]]:
         """Generate December-anchored expanding window CV folds.
 
         Each fold trains through December of year *Y* and tests on
@@ -633,8 +623,9 @@ class WaterInflowForecaster:
         Returns
         -------
         list of (train_series, test_series, label) tuples
+
         """
-        folds: List[Tuple[pd.Series, pd.Series, str]] = []
+        folds: list[tuple[pd.Series, pd.Series, str]] = []
         years = sorted(set(series.index.year))
 
         for year in years:
@@ -658,9 +649,7 @@ class WaterInflowForecaster:
             folds.append((train_fold, test_fold, label))
 
         if not folds:
-            raise ValueError(
-                "No valid December-anchored CV folds found in the data."
-            )
+            raise ValueError("No valid December-anchored CV folds found in the data.")
 
         logger.info("Generated %d December-anchored CV folds.", len(folds))
         return folds
@@ -669,7 +658,7 @@ class WaterInflowForecaster:
     # Private: preprocessing
     # ------------------------------------------------------------------
 
-    def _preprocess_input(self, data: Union[pd.Series, pd.DataFrame]) -> pd.Series:
+    def _preprocess_input(self, data: pd.Series | pd.DataFrame) -> pd.Series:
         """Convert input to a float ``pd.Series`` with a sorted datetime index.
 
         The method supports both ``pd.DataFrame`` (with ``'inflow'``,
@@ -686,15 +675,14 @@ class WaterInflowForecaster:
         -------
         pd.Series
             Cleaned, sorted, float-valued time series.
+
         """
         if isinstance(data, pd.DataFrame):
             # Build datetime index from Year/Month if present
             if "Year" in data.columns and "Month" in data.columns:
                 if not isinstance(data.index, pd.DatetimeIndex):
                     data = data.copy()
-                    data["_date"] = pd.to_datetime(
-                        data[["Year", "Month"]].assign(Day=1)
-                    )
+                    data["_date"] = pd.to_datetime(data[["Year", "Month"]].assign(Day=1))
                     data = data.set_index("_date").sort_index()
 
             # Extract the target column
@@ -720,9 +708,7 @@ class WaterInflowForecaster:
         # Handle missing values via linear interpolation
         if series.isna().any():
             n_missing = int(series.isna().sum())
-            logger.warning(
-                "Found %d missing values; interpolating linearly.", n_missing
-            )
+            logger.warning("Found %d missing values; interpolating linearly.", n_missing)
             series = series.interpolate(method="linear").bfill().ffill()
 
         return series
@@ -786,6 +772,7 @@ class WaterInflowForecaster:
         -------
         pd.DataFrame
             Feature matrix including the target column ``'value'``.
+
         """
         df = pd.DataFrame({"value": series.values})
 
@@ -872,7 +859,7 @@ class WaterInflowForecaster:
             months_history = list(np.arange(len(series)) % 12 + 1)
 
         history = list(detrended)
-        predictions: List[float] = []
+        predictions: list[float] = []
 
         for step in range(steps):
             future_t = float(len(series) + step)
@@ -885,17 +872,11 @@ class WaterInflowForecaster:
             # Override month encoding for the last row with correct month
             if isinstance(series.index, pd.DatetimeIndex):
                 last_date = series.index[-1]
-                future_month = (
-                    (last_date.month + step) % 12
-                ) or 12  # 1-12 range
+                future_month = ((last_date.month + step) % 12) or 12  # 1-12 range
             else:
                 future_month = (months_history[-1] + step) % 12 or 12
-            df.iloc[-1, df.columns.get_loc("month_sin")] = np.sin(
-                2 * np.pi * future_month / 12
-            )
-            df.iloc[-1, df.columns.get_loc("month_cos")] = np.cos(
-                2 * np.pi * future_month / 12
-            )
+            df.iloc[-1, df.columns.get_loc("month_sin")] = np.sin(2 * np.pi * future_month / 12)
+            df.iloc[-1, df.columns.get_loc("month_cos")] = np.cos(2 * np.pi * future_month / 12)
             df.iloc[-1, df.columns.get_loc("time_index")] = len(history) - 1
 
             last_row = df.iloc[[-1]]
@@ -968,7 +949,7 @@ class WaterInflowForecaster:
             months_history = list(np.arange(len(series)) % 12 + 1)
 
         history = list(detrended)
-        predictions: List[float] = []
+        predictions: list[float] = []
 
         for step in range(steps):
             future_t = float(len(series) + step)
@@ -981,17 +962,11 @@ class WaterInflowForecaster:
             # Override month encoding for the last row with correct month
             if isinstance(series.index, pd.DatetimeIndex):
                 last_date = series.index[-1]
-                future_month = (
-                    (last_date.month + step) % 12
-                ) or 12
+                future_month = ((last_date.month + step) % 12) or 12
             else:
                 future_month = (months_history[-1] + step) % 12 or 12
-            df.iloc[-1, df.columns.get_loc("month_sin")] = np.sin(
-                2 * np.pi * future_month / 12
-            )
-            df.iloc[-1, df.columns.get_loc("month_cos")] = np.cos(
-                2 * np.pi * future_month / 12
-            )
+            df.iloc[-1, df.columns.get_loc("month_sin")] = np.sin(2 * np.pi * future_month / 12)
+            df.iloc[-1, df.columns.get_loc("month_cos")] = np.cos(2 * np.pi * future_month / 12)
             df.iloc[-1, df.columns.get_loc("time_index")] = len(history) - 1
 
             last_row = df.iloc[[-1]]
@@ -1011,7 +986,7 @@ class WaterInflowForecaster:
 
     def _build_lstm_sequences(
         self, values: np.ndarray, seq_len: int = 12
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Create input/target sequences for LSTM training.
 
         Parameters
@@ -1025,6 +1000,7 @@ class WaterInflowForecaster:
         -------
         X : np.ndarray of shape (n_samples, seq_len, 1)
         y : np.ndarray of shape (n_samples,)
+
         """
         X, y = [], []
         for i in range(seq_len, len(values)):
@@ -1055,9 +1031,7 @@ class WaterInflowForecaster:
 
         # Scale
         self._lstm_scaler = MinMaxScaler(feature_range=(0, 1))
-        scaled = self._lstm_scaler.fit_transform(
-            series.values.reshape(-1, 1)
-        ).flatten()
+        scaled = self._lstm_scaler.fit_transform(series.values.reshape(-1, 1)).flatten()
 
         X, y = self._build_lstm_sequences(scaled, seq_len)
         X_t = torch.FloatTensor(X)
@@ -1116,24 +1090,22 @@ class WaterInflowForecaster:
 
         logger.info(
             "LSTM fitted (early stopped at %d/%d epochs, best val loss=%.6f).",
-            stopped_epoch, max_epochs, best_val_loss,
+            stopped_epoch,
+            max_epochs,
+            best_val_loss,
         )
 
     def _predict_lstm(self, series: pd.Series, steps: int) -> np.ndarray:
         """Generate recursive multi-step LSTM predictions."""
-        scaled = self._lstm_scaler.transform(
-            series.values.reshape(-1, 1)
-        ).flatten()
+        scaled = self._lstm_scaler.transform(series.values.reshape(-1, 1)).flatten()
 
         history = list(scaled)
-        predictions: List[float] = []
+        predictions: list[float] = []
 
         self._lstm_model.eval()
         with torch.no_grad():
             for _ in range(steps):
-                seq = np.array(history[-self._lstm_seq_len :]).reshape(
-                    1, self._lstm_seq_len, 1
-                )
+                seq = np.array(history[-self._lstm_seq_len :]).reshape(1, self._lstm_seq_len, 1)
                 x_t = torch.FloatTensor(seq)
                 pred_scaled = float(self._lstm_model(x_t).squeeze())
                 history.append(pred_scaled)
@@ -1150,18 +1122,14 @@ class WaterInflowForecaster:
     # Private: ensemble utilities
     # ------------------------------------------------------------------
 
-    def _ensemble_combine(
-        self, predictions_dict: Dict[str, np.ndarray]
-    ) -> np.ndarray:
+    def _ensemble_combine(self, predictions_dict: dict[str, np.ndarray]) -> np.ndarray:
         """Combine individual model predictions using learned weights."""
-        return sum(
-            self._weights[m] * predictions_dict[m] for m in predictions_dict
-        )
+        return sum(self._weights[m] * predictions_dict[m] for m in predictions_dict)
 
     def _optimize_weights(
         self,
         actual: np.ndarray,
-        predictions_dict: Dict[str, np.ndarray],
+        predictions_dict: dict[str, np.ndarray],
     ) -> None:
         """Optimize ensemble weights by minimizing MSE on the validation set.
 
@@ -1175,6 +1143,7 @@ class WaterInflowForecaster:
             Actual validation values.
         predictions_dict : Dict[str, np.ndarray]
             Validation predictions keyed by model name.
+
         """
         model_names = list(predictions_dict.keys())
         n = len(model_names)
@@ -1209,8 +1178,7 @@ class WaterInflowForecaster:
                 self._weights[name] = float(result.x[i])
         else:
             logger.warning(
-                "Weight optimization did not converge (%s). "
-                "Using equal weights.",
+                "Weight optimization did not converge (%s). Using equal weights.",
                 result.message,
             )
             for name in model_names:
@@ -1221,7 +1189,7 @@ class WaterInflowForecaster:
         ensemble_pred: np.ndarray,
         steps: int,
         confidence_level: float,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Compute prediction intervals using conformal prediction.
 
         The calibration residuals obtained during ``fit()`` are used to
@@ -1244,6 +1212,7 @@ class WaterInflowForecaster:
             Lower bounds (clipped at 0 since inflow is non-negative).
         upper : np.ndarray
             Upper bounds.
+
         """
         if self._calibration_residuals is not None and len(self._calibration_residuals) > 0:
             q = float(np.quantile(self._calibration_residuals, confidence_level))
@@ -1253,9 +1222,7 @@ class WaterInflowForecaster:
             upper = ensemble_pred + q * horizon_factor
         else:
             # Fallback: use a percentage-based heuristic
-            logger.warning(
-                "No calibration residuals available; using heuristic intervals."
-            )
+            logger.warning("No calibration residuals available; using heuristic intervals.")
             half_width = (1 - confidence_level) * 0.5
             lower = ensemble_pred * (1 - half_width * 4)
             upper = ensemble_pred * (1 + half_width * 4)

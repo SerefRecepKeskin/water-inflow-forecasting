@@ -1,5 +1,4 @@
-"""
-Centralized logging configuration for water inflow forecasting project.
+"""Centralized logging configuration for water inflow forecasting project.
 
 Usage:
     from utils.logger import get_logger
@@ -8,7 +7,6 @@ Usage:
 """
 
 import logging
-import os
 from datetime import datetime
 from pathlib import Path
 
@@ -31,6 +29,7 @@ def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     Returns
     -------
     logging.Logger
+
     """
     logger = logging.getLogger(name)
 
