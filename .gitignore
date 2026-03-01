@@ -37,7 +37,4 @@ __pycache__/
 # Word temp files
 ~$*
 
-# Assignment file (not to be shared)
-"Data Scientist Recruitment Assignment.docx"
-
 logs/
