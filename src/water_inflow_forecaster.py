@@ -20,9 +20,6 @@ Key Features:
     - Residual Diagnostics: Shapiro-Wilk normality test and autocorrelation.
     - Persistence: Full model save/load via pickle for deployment.
 
-Author: [Data Scientist Candidate]
-Date: 2026
-KocSistem Data Scientist Case Study - Case 2: Multi-Step Regression
 """
 
 import pickle
@@ -1298,29 +1295,26 @@ if __name__ == "__main__":
     # Predict
     result = forecaster.predict(steps=5)
 
-    print("\n" + "=" * 60)
-    print("5-Month Water Inflow Forecast")
-    print("=" * 60)
-    print(f"Predictions : {result.predictions}")
-    print(f"95% Lower   : {result.lower_bound}")
-    print(f"95% Upper   : {result.upper_bound}")
-    print()
+    logger.info("=" * 60)
+    logger.info("5-Month Water Inflow Forecast")
+    logger.info("=" * 60)
+    logger.info("Predictions : %s", result.predictions)
+    logger.info("95%% Lower   : %s", result.lower_bound)
+    logger.info("95%% Upper   : %s", result.upper_bound)
 
     # Individual model contributions
-    print("Individual model predictions:")
+    logger.info("Individual model predictions:")
     for model_name, preds in result.model_details.items():
         weight = forecaster._weights.get(model_name, 0)
-        print(f"  {model_name:10s} (w={weight:.3f}): {preds}")
-    print()
+        logger.info("  %s (w=%.3f): %s", model_name, weight, preds)
 
     # Confidence levels
-    print("Prediction intervals at multiple levels:")
+    logger.info("Prediction intervals at multiple levels:")
     for level_str, (lo, hi) in result.confidence_levels.items():
-        print(f"  {level_str}: [{lo} , {hi}]")
-    print()
+        logger.info("  %s: [%s , %s]", level_str, lo, hi)
 
     # Summary
-    print(result.summary())
+    logger.info("\n%s", result.summary())
 
     # Save and reload test
     save_path = os.path.join(os.path.dirname(__file__), "..", "models", "forecaster.pkl")
@@ -1328,6 +1322,6 @@ if __name__ == "__main__":
 
     loaded = WaterInflowForecaster.load(save_path)
     result2 = loaded.predict(steps=5)
-    print("\nReloaded model predictions:", result2.predictions)
-    print(f"Prediction match: {np.allclose(result.predictions, result2.predictions, atol=1e-4)}")
-    print(f"\nEnsemble Weights: {forecaster._weights}")
+    logger.info("Reloaded model predictions: %s", result2.predictions)
+    logger.info("Prediction match: %s", np.allclose(result.predictions, result2.predictions, atol=1e-4))
+    logger.info("Ensemble Weights: %s", forecaster._weights)
