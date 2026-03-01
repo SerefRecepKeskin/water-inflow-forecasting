@@ -1,0 +1,41 @@
+# PyCharm
+*.iml
+.idea/
+.venv/
+venv/
+.claude/
+.env
+
+# VSCode
+.vscode/
+
+# Python
+*.pyc
+__pycache__/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# MacOS
+.DS_Store
+
+# Configuration directory
+/config
+
+# Local test directory
+/local_test
+
+# Redis
+*.rdb
+
+# Local files
+.local/
+
+# Ruff cache
+.ruff_cache/
+
+# Word temp files
+~$*
+
+# Assignment file (not to be shared)
+"Data Scientist Recruitment Assignment.docx"
