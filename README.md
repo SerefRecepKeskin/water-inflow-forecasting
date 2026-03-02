@@ -222,6 +222,15 @@ All visualizations are saved to `figures/`. Key outputs include:
 | `c2_fe_comparison_pred.png` | Feature engineering impact: prediction overlay |
 | `c2_feature_importance_comparison.png` | Feature importance across XGBoost and RF |
 
+## Documentation
+
+The `docs/` directory contains the project report and presentation:
+
+| File                 | Description                                                           |
+|----------------------|-----------------------------------------------------------------------|
+| `report.docx`        | Detailed project report covering methodology, results, and analysis   |
+| `presentation.pptx`  | Project presentation summarizing key findings and forecasting results |
+
 ## License
 
 MIT License

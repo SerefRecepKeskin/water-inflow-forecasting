@@ -18,7 +18,11 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error, mean_squared_error
+from sklearn.metrics import (
+    mean_absolute_error,
+    mean_absolute_percentage_error,
+    mean_squared_error,
+)
 from xgboost import XGBRegressor
 
 warnings.filterwarnings("ignore")
@@ -54,7 +58,13 @@ def compute_metrics(actual, predicted):
 
 # ---- Recursive Predict for tree models ----
 def recursive_predict(
-    model, last_values, n_steps, feature_names, future_dates, trend_model=None, train_len=None
+    model,
+    last_values,
+    n_steps,
+    feature_names,
+    future_dates,
+    trend_model=None,
+    train_len=None,
 ):
     """Generic recursive predictor."""
     max_lag = 12
@@ -86,7 +96,9 @@ def recursive_predict(
         if "time_index" in feature_names:
             features["time_index"] = (train_len or len(last_values)) + step
 
-        X_step = pd.DataFrame([{f: features.get(f, 0) for f in feature_names}])[feature_names]
+        X_step = pd.DataFrame([{f: features.get(f, 0) for f in feature_names}])[
+            feature_names
+        ]
         pred = model.predict(X_step)[0]
         predictions.append(pred)
         history.append(pred)
@@ -121,16 +133,27 @@ y_basic = feat_basic["target"]
 
 # XGBoost - basic
 xgb_basic = XGBRegressor(
-    n_estimators=200, max_depth=4, learning_rate=0.1, random_state=42, n_jobs=1, verbosity=0
+    n_estimators=200,
+    max_depth=4,
+    learning_rate=0.1,
+    random_state=42,
+    n_jobs=1,
+    verbosity=0,
 )
 xgb_basic.fit(X_basic, y_basic)
-basic_pred_xgb = recursive_predict(xgb_basic, train_ts.values, TEST_SIZE, basic_cols, test_ts.index)
+basic_pred_xgb = recursive_predict(
+    xgb_basic, train_ts.values, TEST_SIZE, basic_cols, test_ts.index
+)
 basic_xgb_metrics = compute_metrics(test_ts.values, basic_pred_xgb)
 
 # RF - basic
-rf_basic = RandomForestRegressor(n_estimators=100, max_depth=6, random_state=42, n_jobs=1)
+rf_basic = RandomForestRegressor(
+    n_estimators=100, max_depth=6, random_state=42, n_jobs=1
+)
 rf_basic.fit(X_basic, y_basic)
-basic_pred_rf = recursive_predict(rf_basic, train_ts.values, TEST_SIZE, basic_cols, test_ts.index)
+basic_pred_rf = recursive_predict(
+    rf_basic, train_ts.values, TEST_SIZE, basic_cols, test_ts.index
+)
 basic_rf_metrics = compute_metrics(test_ts.values, basic_pred_rf)
 
 logger.info(
@@ -166,7 +189,9 @@ def create_full_features(series, detrended_values, max_lag=12):
     for lag in range(1, max_lag + 1):
         df_feat[f"lag_{lag}"] = detr_s.shift(lag)
     for window in [3, 6, 12]:
-        df_feat[f"rolling_mean_{window}"] = detr_s.shift(1).rolling(window=window).mean()
+        df_feat[f"rolling_mean_{window}"] = (
+            detr_s.shift(1).rolling(window=window).mean()
+        )
     for window in [3, 6]:
         df_feat[f"rolling_std_{window}"] = detr_s.shift(1).rolling(window=window).std()
     month = series.index.month
@@ -208,10 +233,18 @@ full_pred_xgb = recursive_predict(
 full_xgb_metrics = compute_metrics(test_ts.values, full_pred_xgb)
 
 # RF - full FE
-rf_full = RandomForestRegressor(n_estimators=100, max_depth=6, random_state=42, n_jobs=1)
+rf_full = RandomForestRegressor(
+    n_estimators=100, max_depth=6, random_state=42, n_jobs=1
+)
 rf_full.fit(X_full, y_full)
 full_pred_rf = recursive_predict(
-    rf_full, detrended, TEST_SIZE, full_cols, test_ts.index, trend_model=lr, train_len=len(train_ts)
+    rf_full,
+    detrended,
+    TEST_SIZE,
+    full_cols,
+    test_ts.index,
+    trend_model=lr,
+    train_len=len(train_ts),
 )
 full_rf_metrics = compute_metrics(test_ts.values, full_pred_rf)
 
@@ -233,11 +266,23 @@ logger.info(
 # Improvement calculations
 # ==============================================================
 xgb_rmse_imp = (
-    (basic_xgb_metrics["RMSE"] - full_xgb_metrics["RMSE"]) / basic_xgb_metrics["RMSE"] * 100
+    (basic_xgb_metrics["RMSE"] - full_xgb_metrics["RMSE"])
+    / basic_xgb_metrics["RMSE"]
+    * 100
 )
-rf_rmse_imp = (basic_rf_metrics["RMSE"] - full_rf_metrics["RMSE"]) / basic_rf_metrics["RMSE"] * 100
-xgb_mae_imp = (basic_xgb_metrics["MAE"] - full_xgb_metrics["MAE"]) / basic_xgb_metrics["MAE"] * 100
-rf_mae_imp = (basic_rf_metrics["MAE"] - full_rf_metrics["MAE"]) / basic_rf_metrics["MAE"] * 100
+rf_rmse_imp = (
+    (basic_rf_metrics["RMSE"] - full_rf_metrics["RMSE"])
+    / basic_rf_metrics["RMSE"]
+    * 100
+)
+xgb_mae_imp = (
+    (basic_xgb_metrics["MAE"] - full_xgb_metrics["MAE"])
+    / basic_xgb_metrics["MAE"]
+    * 100
+)
+rf_mae_imp = (
+    (basic_rf_metrics["MAE"] - full_rf_metrics["MAE"]) / basic_rf_metrics["MAE"] * 100
+)
 
 logger.info("=== Feature Engineering Impact ===")
 logger.info("  XGBoost RMSE improvement: %%%.1f", xgb_rmse_imp)
@@ -308,8 +353,12 @@ for bar, val in zip(bars2, full_vals):
 ax = axes[1]
 basic_vals = [basic_xgb_metrics["MAE"], basic_rf_metrics["MAE"]]
 full_vals = [full_xgb_metrics["MAE"], full_rf_metrics["MAE"]]
-bars1 = ax.bar(x - width / 2, basic_vals, width, label="Lag Only", color="#E74C3C", alpha=0.8)
-bars2 = ax.bar(x + width / 2, full_vals, width, label="Full FE", color="#27AE60", alpha=0.8)
+bars1 = ax.bar(
+    x - width / 2, basic_vals, width, label="Lag Only", color="#E74C3C", alpha=0.8
+)
+bars2 = ax.bar(
+    x + width / 2, full_vals, width, label="Full FE", color="#27AE60", alpha=0.8
+)
 ax.set_ylabel("MAE", fontsize=12)
 ax.set_title("MAE Comparison", fontsize=13, fontweight="bold")
 ax.set_xticks(x)
@@ -340,8 +389,12 @@ for bar, val in zip(bars2, full_vals):
 ax = axes[2]
 basic_vals = [basic_xgb_metrics["MAPE"], basic_rf_metrics["MAPE"]]
 full_vals = [full_xgb_metrics["MAPE"], full_rf_metrics["MAPE"]]
-bars1 = ax.bar(x - width / 2, basic_vals, width, label="Lag Only", color="#E74C3C", alpha=0.8)
-bars2 = ax.bar(x + width / 2, full_vals, width, label="Full FE", color="#27AE60", alpha=0.8)
+bars1 = ax.bar(
+    x - width / 2, basic_vals, width, label="Lag Only", color="#E74C3C", alpha=0.8
+)
+bars2 = ax.bar(
+    x + width / 2, full_vals, width, label="Full FE", color="#27AE60", alpha=0.8
+)
 ax.set_ylabel("MAPE (%)", fontsize=12)
 ax.set_title("MAPE Comparison", fontsize=13, fontweight="bold")
 ax.set_xticks(x)
@@ -369,7 +422,10 @@ for bar, val in zip(bars2, full_vals):
     )
 
 plt.suptitle(
-    "Feature Engineering Impact: Raw Lags vs Full FE", fontsize=15, fontweight="bold", y=1.02
+    "Feature Engineering Impact: Raw Lags vs Full FE",
+    fontsize=15,
+    fontweight="bold",
+    y=1.02,
 )
 plt.tight_layout()
 plt.savefig(FIGURES_DIR + "c2_fe_comparison_bar.png", dpi=150, bbox_inches="tight")
@@ -441,7 +497,10 @@ ax.grid(True, alpha=0.3)
 ax.tick_params(axis="x", rotation=45)
 
 plt.suptitle(
-    "Feature Engineering Impact: Prediction Comparison", fontsize=15, fontweight="bold", y=1.02
+    "Feature Engineering Impact: Prediction Comparison",
+    fontsize=15,
+    fontweight="bold",
+    y=1.02,
 )
 plt.tight_layout()
 plt.savefig(FIGURES_DIR + "c2_fe_comparison_pred.png", dpi=150, bbox_inches="tight")
