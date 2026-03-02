@@ -45,6 +45,8 @@ water-inflow-forecasting/
 ├── models/                         # Serialized model artifacts
 │   └── forecaster.pkl              # Trained WaterInflowForecaster instance
 ├── docs/                           # Reports and presentations
+│   ├── report.docx                #   Project report (Word)
+│   └── presentation.pptx         #   Project presentation (PowerPoint)
 ├── logs/                           # Daily execution logs (auto-generated)
 │
 ├── requirements.txt
