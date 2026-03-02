@@ -167,7 +167,7 @@ The main production module. Key components:
     walk-forward CV, optimizes ensemble weights, calibrates conformal intervals.
   - `predict(steps=None)` — Generates multi-step forecasts with uncertainty bands.
   - `evaluate(actual, predicted)` — Computes RMSE, MAE, MAPE, SMAPE, and
-    residual diagnostics (Shapiro-Wilk normality test, lag-1 autocorrelation).
+    residual diagnostics (residual mean, std, lag-1 autocorrelation).
   - `save(path)` / `load(path)` — Model persistence via pickle.
 
 ### `src/lstm_trainer.py`
@@ -219,7 +219,6 @@ All visualizations are saved to `figures/`. Key outputs include:
 | `c2_seasonal_decomposition.png` | STL decomposition (trend, seasonal, residual) |
 | `c2_acf_pacf.png` | Autocorrelation and partial autocorrelation plots |
 | `c2_model_comparison.png` | Performance metrics across all 4 models |
-| `c2_residual_diagnostics.png` | Residual distribution and autocorrelation analysis |
 | `c2_fe_comparison_bar.png` | Feature engineering impact: metric comparison |
 | `c2_fe_comparison_pred.png` | Feature engineering impact: prediction overlay |
 | `c2_feature_importance_comparison.png` | Feature importance across XGBoost and RF |

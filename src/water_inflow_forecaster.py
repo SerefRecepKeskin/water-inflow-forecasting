@@ -17,7 +17,7 @@ Key Features:
       dependencies via PyTorch.
     - Ensemble: Weighted combination of all four models.
     - Uncertainty: Conformal prediction intervals at multiple confidence levels.
-    - Residual Diagnostics: Shapiro-Wilk normality test and autocorrelation.
+    - Residual Diagnostics: Residual statistics and autocorrelation.
     - Persistence: Full model save/load via pickle for deployment.
 
 """
@@ -33,7 +33,6 @@ import numpy as np
 import pandas as pd
 import torch
 from scipy.optimize import minimize
-from scipy.stats import shapiro
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.preprocessing import MinMaxScaler
@@ -476,19 +475,13 @@ class WaterInflowForecaster:
         Returns
         -------
         Dict[str, float]
-            Dictionary containing Shapiro-Wilk statistic and p-value,
-            residual mean, standard deviation, and lag-1 autocorrelation.
+            Dictionary containing residual mean, standard deviation,
+            and lag-1 autocorrelation.
 
         """
         actual_arr = np.asarray(actual, dtype=float)
         predicted_arr = np.asarray(predicted, dtype=float)
         residuals = actual_arr - predicted_arr
-
-        # Shapiro-Wilk normality test
-        if len(residuals) >= 3:
-            shapiro_stat, shapiro_p = shapiro(residuals)
-        else:
-            shapiro_stat, shapiro_p = float("nan"), float("nan")
 
         # Residual mean and std
         res_mean = float(np.mean(residuals))
@@ -501,8 +494,6 @@ class WaterInflowForecaster:
             lag1_corr = float("nan")
 
         return {
-            "shapiro_stat": float(shapiro_stat),
-            "shapiro_p": float(shapiro_p),
             "residual_mean": res_mean,
             "residual_std": res_std,
             "lag1_autocorrelation": lag1_corr,
