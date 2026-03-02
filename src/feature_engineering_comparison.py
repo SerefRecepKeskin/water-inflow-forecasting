@@ -1,9 +1,9 @@
-"""Feature Engineering Etkisi Karsilastirmasi
+"""Feature Engineering Impact Comparison
 ==========================================
-Raw veri (FE olmadan) vs Feature Engineered veri ile model performansini karsilastirir.
-2 figur uretir:
-  - c2_fe_comparison_bar.png  (bar chart: metrik karsilastirmasi)
-  - c2_fe_comparison_pred.png (tahmin overlay grafigi)
+Compares model performance: Raw data (no FE) vs Feature Engineered data.
+Produces 2 figures:
+  - c2_fe_comparison_bar.png  (bar chart: metric comparison)
+  - c2_fe_comparison_pred.png (prediction overlay plot)
 """
 
 import matplotlib
@@ -239,11 +239,11 @@ rf_rmse_imp = (basic_rf_metrics["RMSE"] - full_rf_metrics["RMSE"]) / basic_rf_me
 xgb_mae_imp = (basic_xgb_metrics["MAE"] - full_xgb_metrics["MAE"]) / basic_xgb_metrics["MAE"] * 100
 rf_mae_imp = (basic_rf_metrics["MAE"] - full_rf_metrics["MAE"]) / basic_rf_metrics["MAE"] * 100
 
-logger.info("=== Feature Engineering Etkisi ===")
-logger.info("  XGBoost RMSE iyilesme: %%%.1f", xgb_rmse_imp)
-logger.info("  XGBoost MAE iyilesme:  %%%.1f", xgb_mae_imp)
-logger.info("  RF RMSE iyilesme:      %%%.1f", rf_rmse_imp)
-logger.info("  RF MAE iyilesme:       %%%.1f", rf_mae_imp)
+logger.info("=== Feature Engineering Impact ===")
+logger.info("  XGBoost RMSE improvement: %%%.1f", xgb_rmse_imp)
+logger.info("  XGBoost MAE improvement:  %%%.1f", xgb_mae_imp)
+logger.info("  RF RMSE improvement:      %%%.1f", rf_rmse_imp)
+logger.info("  RF MAE improvement:       %%%.1f", rf_mae_imp)
 
 
 # ==============================================================
@@ -266,7 +266,7 @@ bars1 = ax.bar(
     x - width / 2,
     basic_vals,
     width,
-    label="Sadece Lag (FE Yok)",
+    label="Lag Only (No FE)",
     color="#E74C3C",
     alpha=0.8,
 )
@@ -279,7 +279,7 @@ bars2 = ax.bar(
     alpha=0.8,
 )
 ax.set_ylabel("RMSE", fontsize=12)
-ax.set_title("RMSE Karsilastirmasi", fontsize=13, fontweight="bold")
+ax.set_title("RMSE Comparison", fontsize=13, fontweight="bold")
 ax.set_xticks(x)
 ax.set_xticklabels(models)
 ax.legend(fontsize=9)
@@ -308,10 +308,10 @@ for bar, val in zip(bars2, full_vals):
 ax = axes[1]
 basic_vals = [basic_xgb_metrics["MAE"], basic_rf_metrics["MAE"]]
 full_vals = [full_xgb_metrics["MAE"], full_rf_metrics["MAE"]]
-bars1 = ax.bar(x - width / 2, basic_vals, width, label="Sadece Lag", color="#E74C3C", alpha=0.8)
+bars1 = ax.bar(x - width / 2, basic_vals, width, label="Lag Only", color="#E74C3C", alpha=0.8)
 bars2 = ax.bar(x + width / 2, full_vals, width, label="Full FE", color="#27AE60", alpha=0.8)
 ax.set_ylabel("MAE", fontsize=12)
-ax.set_title("MAE Karsilastirmasi", fontsize=13, fontweight="bold")
+ax.set_title("MAE Comparison", fontsize=13, fontweight="bold")
 ax.set_xticks(x)
 ax.set_xticklabels(models)
 ax.legend(fontsize=9)
@@ -340,10 +340,10 @@ for bar, val in zip(bars2, full_vals):
 ax = axes[2]
 basic_vals = [basic_xgb_metrics["MAPE"], basic_rf_metrics["MAPE"]]
 full_vals = [full_xgb_metrics["MAPE"], full_rf_metrics["MAPE"]]
-bars1 = ax.bar(x - width / 2, basic_vals, width, label="Sadece Lag", color="#E74C3C", alpha=0.8)
+bars1 = ax.bar(x - width / 2, basic_vals, width, label="Lag Only", color="#E74C3C", alpha=0.8)
 bars2 = ax.bar(x + width / 2, full_vals, width, label="Full FE", color="#27AE60", alpha=0.8)
 ax.set_ylabel("MAPE (%)", fontsize=12)
-ax.set_title("MAPE Karsilastirmasi", fontsize=13, fontweight="bold")
+ax.set_title("MAPE Comparison", fontsize=13, fontweight="bold")
 ax.set_xticks(x)
 ax.set_xticklabels(models)
 ax.legend(fontsize=9)
@@ -369,7 +369,7 @@ for bar, val in zip(bars2, full_vals):
     )
 
 plt.suptitle(
-    "Feature Engineering Etkisi: Ham Lag vs Full FE", fontsize=15, fontweight="bold", y=1.02
+    "Feature Engineering Impact: Raw Lags vs Full FE", fontsize=15, fontweight="bold", y=1.02
 )
 plt.tight_layout()
 plt.savefig(FIGURES_DIR + "c2_fe_comparison_bar.png", dpi=150, bbox_inches="tight")
@@ -384,7 +384,7 @@ fig, axes = plt.subplots(1, 2, figsize=(16, 6))
 
 # XGBoost comparison
 ax = axes[0]
-ax.plot(test_ts.index, test_ts.values, "k-o", markersize=6, linewidth=2, label="Gercek Deger")
+ax.plot(test_ts.index, test_ts.values, "k-o", markersize=6, linewidth=2, label="Actual")
 ax.plot(
     test_ts.index,
     basic_pred_xgb,
@@ -406,14 +406,14 @@ ax.plot(
     label=f"XGBoost Full FE (RMSE={full_xgb_metrics['RMSE']:.1f})",
 )
 ax.set_title("XGBoost: Basic vs Full FE", fontsize=13, fontweight="bold")
-ax.set_ylabel("Su Akisi")
+ax.set_ylabel("Water Inflow")
 ax.legend(fontsize=9)
 ax.grid(True, alpha=0.3)
 ax.tick_params(axis="x", rotation=45)
 
 # RF comparison
 ax = axes[1]
-ax.plot(test_ts.index, test_ts.values, "k-o", markersize=6, linewidth=2, label="Gercek Deger")
+ax.plot(test_ts.index, test_ts.values, "k-o", markersize=6, linewidth=2, label="Actual")
 ax.plot(
     test_ts.index,
     basic_pred_rf,
@@ -435,13 +435,13 @@ ax.plot(
     label=f"RF Full FE (RMSE={full_rf_metrics['RMSE']:.1f})",
 )
 ax.set_title("Random Forest: Basic vs Full FE", fontsize=13, fontweight="bold")
-ax.set_ylabel("Su Akisi")
+ax.set_ylabel("Water Inflow")
 ax.legend(fontsize=9)
 ax.grid(True, alpha=0.3)
 ax.tick_params(axis="x", rotation=45)
 
 plt.suptitle(
-    "Feature Engineering Etkisi: Tahmin Karsilastirmasi", fontsize=15, fontweight="bold", y=1.02
+    "Feature Engineering Impact: Prediction Comparison", fontsize=15, fontweight="bold", y=1.02
 )
 plt.tight_layout()
 plt.savefig(FIGURES_DIR + "c2_fe_comparison_pred.png", dpi=150, bbox_inches="tight")
@@ -465,4 +465,4 @@ with open(FIGURES_DIR + "fe_comparison_metrics.json", "w") as f:
     json.dump(results, f, indent=2)
 logger.info("Saved: %sfe_comparison_metrics.json", FIGURES_DIR)
 
-logger.info("Tamamlandi!")
+logger.info("Done!")
